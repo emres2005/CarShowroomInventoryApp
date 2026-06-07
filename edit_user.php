@@ -90,7 +90,7 @@ renderHeader('Edit User');
     </div>
 
     <div class="alert alert-info" style="margin-bottom:1rem">
-      Leave password fields blank to keep the current password.
+      Leave password fields blank to keep the current password. New passwords must be at least 8 chars, 1 uppercase, 1 digit.
     </div>
 
     <div class="form-group">

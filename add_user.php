@@ -76,7 +76,7 @@ renderHeader('Add User');
       <label class="form-label" for="password">Password *</label>
       <div style="position:relative">
         <input id="password" type="password" name="password" class="form-control"
-               placeholder="Min 8 characters" autocomplete="new-password" required>
+               placeholder="Min 8 chars, 1 uppercase, 1 digit" autocomplete="new-password" required>
         <button type="button" id="togglePw"
                 style="position:absolute;right:.7rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--text-muted);">Show</button>
       </div>
