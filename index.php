@@ -13,25 +13,27 @@ $pdo = getPDO();
 $stats = $pdo->query("
     SELECT
         COUNT(*) AS total,
-        SUM(status='available')  AS available,
-        SUM(status='sold')       AS sold,
-        SUM(status='reserved')   AS reserved,
-        SUM(price)               AS total_value,
-        AVG(price)               AS avg_price
-    FROM cars
+        SUM(cd.status='available')  AS available,
+        SUM(cd.status='sold')       AS sold,
+        SUM(cd.status='reserved')   AS reserved,
+        SUM(cd.price)               AS total_value,
+        AVG(cd.price)               AS avg_price
+    FROM cars c
+    JOIN car_data cd ON c.plate_number = cd.plate_number
 ")->fetch();
 
 // ── Recent 5 cars ─────────────────────────────────────────
 $recent = $pdo->query("
-    SELECT id, brand, car_model, plate_number, color, status, price, created_at
-    FROM cars
-    ORDER BY created_at DESC
+    SELECT c.plate_number, cd.brand, cd.car_model, cd.color, cd.status, cd.price, c.created_at
+    FROM cars c
+    JOIN car_data cd ON c.plate_number = cd.plate_number
+    ORDER BY c.created_at DESC
     LIMIT 5
 ")->fetchAll();
 
 // ── By fuel type ──────────────────────────────────────────
 $byFuel = $pdo->query("
-    SELECT fuel_type, COUNT(*) AS cnt FROM cars GROUP BY fuel_type ORDER BY cnt DESC
+    SELECT cd.fuel_type, COUNT(*) AS cnt FROM car_data cd GROUP BY cd.fuel_type ORDER BY cnt DESC
 ")->fetchAll();
 
 renderHeader('Dashboard');

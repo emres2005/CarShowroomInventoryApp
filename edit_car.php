@@ -8,16 +8,22 @@ require 'config.php';
 require 'layout.php';
 requireLogin();
 
-$pdo = getPDO();
-$id  = (int)($_GET['id'] ?? 0);
+$pdo   = getPDO();
+$plate = trim($_GET['plate'] ?? '');
 
-if ($id <= 0) {
-    flash('danger', 'Invalid car ID.');
+if ($plate === '') {
+    flash('danger', 'Invalid plate number.');
     header('Location: cars.php'); exit;
 }
 
-$car = $pdo->prepare('SELECT * FROM cars WHERE id = ?');
-$car->execute([$id]);
+$car = $pdo->prepare('
+    SELECT c.plate_number, cd.brand, cd.car_model, cd.color, cd.year, cd.mileage,
+           cd.price, cd.fuel_type, cd.status, cd.description, c.created_at, c.updated_at
+    FROM cars c
+    JOIN car_data cd ON c.plate_number = cd.plate_number
+    WHERE c.plate_number = ?
+');
+$car->execute([$plate]);
 $car = $car->fetch();
 
 if (!$car) {
@@ -62,16 +68,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$errors) {
             try {
+                $pdo->beginTransaction();
+
+                // Update car_data (vehicle attributes)
                 $pdo->prepare("
-                    UPDATE cars SET
-                        brand=:brand, car_model=:car_model, plate_number=:plate_number,
-                        color=:color, year=:year, mileage=:mileage, price=:price,
+                    UPDATE car_data SET
+                        brand=:brand, car_model=:car_model, color=:color,
+                        year=:year, mileage=:mileage, price=:price,
                         fuel_type=:fuel_type, status=:status, description=:description
-                    WHERE id=:id
+                    WHERE plate_number=:old_plate
                 ")->execute([
                     ':brand'        => ucwords(strtolower($vals['brand'])),
                     ':car_model'    => ucwords(strtolower($vals['car_model'])),
-                    ':plate_number' => $vals['plate_number'],
                     ':color'        => $vals['color'],
                     ':year'         => $vals['year']    !== '' ? (int)$vals['year']    : null,
                     ':mileage'      => $vals['mileage'] !== '' ? (int)$vals['mileage'] : null,
@@ -79,11 +87,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':fuel_type'    => $vals['fuel_type'],
                     ':status'       => $vals['status'],
                     ':description'  => $vals['description'] !== '' ? $vals['description'] : null,
-                    ':id'           => $id,
+                    ':old_plate'    => $plate,
                 ]);
+
+                // If plate number changed, update cars table (CASCADE updates car_data FK)
+                if ($vals['plate_number'] !== $plate) {
+                    $pdo->prepare("UPDATE cars SET plate_number=:new_plate WHERE plate_number=:old_plate")
+                        ->execute([':new_plate' => $vals['plate_number'], ':old_plate' => $plate]);
+                }
+
+                $pdo->commit();
                 flash('success', '✅ Car updated successfully!');
                 header('Location: cars.php'); exit;
             } catch (PDOException $e) {
+                $pdo->rollBack();
                 if ($e->errorInfo[1] === 1062)
                     $errors[] = 'Plate number "' . h($vals['plate_number']) . '" already belongs to another car.';
                 else
@@ -103,11 +120,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$errors) {
             try {
                 $pdo->prepare("
-                    UPDATE cars SET status=:status, description=:description WHERE id=:id
+                    UPDATE car_data SET status=:status, description=:description WHERE plate_number=:plate
                 ")->execute([
                     ':status'      => $vals['status'],
                     ':description' => $vals['description'] !== '' ? $vals['description'] : null,
-                    ':id'          => $id,
+                    ':plate'       => $plate,
                 ]);
                 flash('success', '✅ Car status and notes updated!');
                 header('Location: cars.php'); exit;
@@ -149,7 +166,7 @@ renderHeader('Edit Car');
 <?php if (isAdmin()): ?>
 <!-- ══ ADMIN: Full edit form ══════════════════════════════════ -->
 <div class="card" style="max-width:780px">
-  <form method="post" action="edit_car.php?id=<?= $id ?>">
+  <form method="post" action="edit_car.php?plate=<?= urlencode($plate) ?>">
     <input type="hidden" name="csrf_token" value="<?= h($token) ?>">
 
     <div class="form-row">
@@ -255,7 +272,7 @@ renderHeader('Edit Car');
     </div>
   </div>
 
-  <form method="post" action="edit_car.php?id=<?= $id ?>">
+  <form method="post" action="edit_car.php?plate=<?= urlencode($plate) ?>">
     <input type="hidden" name="csrf_token" value="<?= h($token) ?>">
 
     <div class="form-group">

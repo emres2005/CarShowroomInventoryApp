@@ -1,6 +1,6 @@
 <?php
 /**
- * delete_car.php — POST-only: delete a car by ID (admin only)
+ * delete_car.php — POST-only: delete a car by plate number (admin only)
  */
 require 'config.php';
 requireLogin();
@@ -13,9 +13,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 verifyCsrf();
 
-$id = (int)($_POST['id'] ?? 0);
-if ($id <= 0) {
-    flash('danger', 'Invalid car ID.');
+$plate = trim($_POST['plate_number'] ?? '');
+if ($plate === '') {
+    flash('danger', 'Invalid plate number.');
     header('Location: cars.php');
     exit;
 }
@@ -23,8 +23,8 @@ if ($id <= 0) {
 try {
     $pdo  = getPDO();
     // Fetch name for the flash message before deleting
-    $info = $pdo->prepare('SELECT brand, car_model, plate_number FROM cars WHERE id = ?');
-    $info->execute([$id]);
+    $info = $pdo->prepare('SELECT brand, car_model FROM car_data WHERE plate_number = ?');
+    $info->execute([$plate]);
     $car  = $info->fetch();
 
     if (!$car) {
@@ -33,11 +33,12 @@ try {
         exit;
     }
 
-    $stmt = $pdo->prepare('DELETE FROM cars WHERE id = ?');
-    $stmt->execute([$id]);
+    // Delete from cars — CASCADE removes car_data row automatically
+    $stmt = $pdo->prepare('DELETE FROM cars WHERE plate_number = ?');
+    $stmt->execute([$plate]);
 
     flash('success', '🗑️ Car "' . h($car['brand']) . ' ' . h($car['car_model']) .
-                     ' (' . h($car['plate_number']) . ')" deleted.');
+                     ' (' . h($plate) . ')" deleted.');
 } catch (PDOException $e) {
     flash('danger', 'Database error: ' . $e->getMessage());
 }

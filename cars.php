@@ -13,40 +13,50 @@ $where  = [];
 $params = [];
 
 if (!empty($_GET['q'])) {
-    $where[]       = '(brand LIKE :q OR car_model LIKE :q OR plate_number LIKE :q)';
+    $where[]       = '(cd.brand LIKE :q OR cd.car_model LIKE :q OR c.plate_number LIKE :q)';
     $params[':q']  = '%' . $_GET['q'] . '%';
 }
 if (!empty($_GET['status'])) {
-    $where[]          = 'status = :status';
+    $where[]          = 'cd.status = :status';
     $params[':status'] = $_GET['status'];
 }
 if (!empty($_GET['fuel'])) {
-    $where[]        = 'fuel_type = :fuel';
+    $where[]        = 'cd.fuel_type = :fuel';
     $params[':fuel'] = $_GET['fuel'];
 }
 
 $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
 // ── Sort ──────────────────────────────────────────────────
-$allowedSort = ['brand','car_model','plate_number','year','price','status','created_at'];
-$sort  = in_array($_GET['sort'] ?? '', $allowedSort) ? $_GET['sort'] : 'created_at';
-$order = ($_GET['order'] ?? 'desc') === 'asc' ? 'ASC' : 'DESC';
+$sortMap = [
+    'brand'        => 'cd.brand',
+    'car_model'    => 'cd.car_model',
+    'plate_number' => 'c.plate_number',
+    'year'         => 'cd.year',
+    'price'        => 'cd.price',
+    'status'       => 'cd.status',
+    'created_at'   => 'c.created_at',
+];
+$sortKey  = in_array($_GET['sort'] ?? '', array_keys($sortMap)) ? $_GET['sort'] : 'created_at';
+$sortCol  = $sortMap[$sortKey];
+$order    = ($_GET['order'] ?? 'desc') === 'asc' ? 'ASC' : 'DESC';
 $flipOrder = ($order === 'ASC') ? 'desc' : 'asc';
 
 $stmt = $pdo->prepare("
-    SELECT id, brand, car_model, plate_number, color, year, mileage,
-           price, fuel_type, status, created_at
-    FROM cars
+    SELECT c.plate_number, cd.brand, cd.car_model, cd.color, cd.year, cd.mileage,
+           cd.price, cd.fuel_type, cd.status, c.created_at
+    FROM cars c
+    JOIN car_data cd ON c.plate_number = cd.plate_number
     {$whereSql}
-    ORDER BY {$sort} {$order}
+    ORDER BY {$sortCol} {$order}
 ");
 $stmt->execute($params);
 $cars = $stmt->fetchAll();
 
 $sortLink = fn($col, $label) =>
-    "<a href=\"cars.php?" . http_build_query(array_merge($_GET, ['sort'=>$col,'order'=>($sort===$col?$flipOrder:'asc')])) . "\"
+    "<a href=\"cars.php?" . http_build_query(array_merge($_GET, ['sort'=>$col,'order'=>($sortKey===$col?$flipOrder:'asc')])) . "\"
         style=\"color:inherit;text-decoration:none\">{$label}" .
-    ($sort===$col ? ($order==='ASC'?' ↑':' ↓') : '') . "</a>";
+    ($sortKey===$col ? ($order==='ASC'?' ↑':' ↓') : '') . "</a>";
 
 renderHeader('Inventory');
 ?>
@@ -103,7 +113,6 @@ renderHeader('Inventory');
   <table class="data-table" id="carsTable">
     <thead>
       <tr>
-        <th>#</th>
         <th><?= $sortLink('brand','Brand / Model') ?></th>
         <th><?= $sortLink('plate_number','Plate') ?></th>
         <th>Color</th>
@@ -119,7 +128,6 @@ renderHeader('Inventory');
     <?php if ($cars): ?>
       <?php foreach ($cars as $i => $c): ?>
       <tr>
-        <td style="color:var(--text-dim);font-size:.8rem"><?= (int)$c['id'] ?></td>
         <td>
           <strong><?= h($c['brand']) ?></strong>
           <span style="color:var(--text-muted)"> <?= h($c['car_model']) ?></span>
@@ -137,18 +145,18 @@ renderHeader('Inventory');
         <td>
           <div class="actions">
             <?php if (isAdmin()): ?>
-              <a href="edit_car.php?id=<?= (int)$c['id'] ?>" class="btn btn-sm btn-ghost" title="Edit car">✏️ Edit</a>
+              <a href="edit_car.php?plate=<?= urlencode($c['plate_number']) ?>" class="btn btn-sm btn-ghost" title="Edit car">✏️ Edit</a>
               <!-- Hidden delete form -->
-              <form method="post" action="delete_car.php" id="del<?= (int)$c['id'] ?>">
+              <form method="post" action="delete_car.php" id="del<?= h($c['plate_number']) ?>">
                 <input type="hidden" name="csrf_token" value="<?= h(csrfToken()) ?>">
-                <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
+                <input type="hidden" name="plate_number" value="<?= h($c['plate_number']) ?>">
               </form>
               <button type="button" class="btn btn-sm btn-danger" title="Delete"
-                onclick="openConfirm('Delete <?= h(addslashes($c['brand'] . ' ' . $c['car_model'])) ?> (<?= h(addslashes($c['plate_number'])) ?>)?','del<?= (int)$c['id'] ?>')">
+                onclick="openConfirm('Delete <?= h(addslashes($c['brand'] . ' ' . $c['car_model'])) ?> (<?= h(addslashes($c['plate_number'])) ?>)?','del<?= h($c['plate_number']) ?>')">
                 🗑️
               </button>
             <?php else: ?>
-              <a href="edit_car.php?id=<?= (int)$c['id'] ?>" class="btn btn-sm btn-ghost" title="Update status / notes">
+              <a href="edit_car.php?plate=<?= urlencode($c['plate_number']) ?>" class="btn btn-sm btn-ghost" title="Update status / notes">
                 🏷️ Status
               </a>
             <?php endif; ?>
@@ -157,7 +165,7 @@ renderHeader('Inventory');
       </tr>
       <?php endforeach; ?>
     <?php else: ?>
-      <tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text-muted)">
+      <tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-muted)">
         No cars match your search.
         <?php if (isAdmin()): ?><a href="add_car.php">Add one →</a><?php endif; ?>
       </td></tr>
