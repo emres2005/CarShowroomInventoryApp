@@ -64,7 +64,7 @@ function togglePassword(btnId, inputId) {
   btn.addEventListener('click', () => {
     const isText = input.type === 'text';
     input.type = isText ? 'password' : 'text';
-    btn.textContent = isText ? '👁' : '🙈';
+    btn.textContent = isText ? 'Show' : 'Hide';
   });
 }
 

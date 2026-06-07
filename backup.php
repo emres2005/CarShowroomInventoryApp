@@ -2,57 +2,21 @@
 /**
  * backup.php — Database backup (mysqldump) and rollback (restore) — Admin only
  */
-require 'config.php';
-require 'layout.php';
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/layout.php';
 requireAdmin();
 
-// Ensure backup directory exists and is protected
-if (!is_dir(BACKUP_DIR)) {
-    mkdir(BACKUP_DIR, 0750, true);
-    // Write .htaccess to block direct HTTP access
-    file_put_contents(BACKUP_DIR . '.htaccess', "Deny from all\n");
-}
-
-$pdo    = getPDO();
-$errors = [];
-$info   = '';
-
-/* ── Helper: list existing backup files ─────────────────── */
-function listBackups(): array {
-    $files = glob(BACKUP_DIR . '*.sql');
-    if (!$files) return [];
-    usort($files, fn($a,$b) => filemtime($b) - filemtime($a)); // newest first
-    return $files;
-}
+$backupService = new \App\Services\BackupService();
 
 /* ── Action: CREATE backup ───────────────────────────────── */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'backup') {
     verifyCsrf();
-
-    $ts       = date('Y-m-d_H-i-s');
-    $user     = $_SESSION['username'];
-    $filename = "backup_{$ts}_{$user}.sql";
-    $filepath = BACKUP_DIR . $filename;
-
-    // Build mysqldump command — credentials via env to avoid shell history exposure
-    $cmd = sprintf(
-        'MYSQL_PWD=%s mysqldump --host=%s --user=%s --single-transaction --quick --routines --triggers %s > %s 2>&1',
-        escapeshellarg(DB_PASS),
-        escapeshellarg(DB_HOST),
-        escapeshellarg(DB_USER),
-        escapeshellarg(DB_NAME),
-        escapeshellarg($filepath)
-    );
-    exec($cmd, $output, $exitCode);
-
-    if ($exitCode === 0 && file_exists($filepath) && filesize($filepath) > 0) {
-        // Log in DB
-        $pdo->prepare('INSERT INTO backup_log (filename, created_by) VALUES (?,?)')
-            ->execute([$filename, $user]);
-        flash('success', '💾 Backup created: ' . h($filename));
+    $result = $backupService->createBackup($_SESSION['username']);
+    
+    if ($result['success']) {
+        flash('success', 'Backup created: ' . h($result['filename']));
     } else {
-        @unlink($filepath);
-        flash('danger', '❌ Backup failed. Check server mysqldump access. Exit code: ' . $exitCode);
+        flash('danger', $result['errors'][0]);
     }
     header('Location: backup.php');
     exit;
@@ -61,31 +25,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'backu
 /* ── Action: RESTORE / ROLLBACK ──────────────────────────── */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'restore') {
     verifyCsrf();
-
     $filename = basename($_POST['filename'] ?? '');
-    $filepath = BACKUP_DIR . $filename;
-
-    // Security: only allow .sql files that actually live in BACKUP_DIR
-    if (!preg_match('/^backup_[\w\-]+\.sql$/', $filename) || !file_exists($filepath)) {
-        flash('danger', '❌ Invalid or missing backup file.');
-        header('Location: backup.php');
-        exit;
-    }
-
-    $cmd = sprintf(
-        'MYSQL_PWD=%s mysql --host=%s --user=%s %s < %s 2>&1',
-        escapeshellarg(DB_PASS),
-        escapeshellarg(DB_HOST),
-        escapeshellarg(DB_USER),
-        escapeshellarg(DB_NAME),
-        escapeshellarg($filepath)
-    );
-    exec($cmd, $output, $exitCode);
-
-    if ($exitCode === 0) {
-        flash('success', '🔄 Rollback to <strong>' . h($filename) . '</strong> completed successfully!');
+    
+    $result = $backupService->restoreBackup($filename);
+    
+    if ($result['success']) {
+        flash('success', 'Rollback to <strong>' . h($filename) . '</strong> completed successfully!');
     } else {
-        flash('danger', '❌ Restore failed. Exit code: ' . $exitCode . '. Output: ' . implode(' ', $output));
+        flash('danger', $result['errors'][0]);
     }
     header('Location: backup.php');
     exit;
@@ -94,26 +41,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'resto
 /* ── Action: DELETE backup file ──────────────────────────── */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_backup') {
     verifyCsrf();
-
     $filename = basename($_POST['filename'] ?? '');
-    $filepath = BACKUP_DIR . $filename;
-
-    if (!preg_match('/^backup_[\w\-]+\.sql$/', $filename) || !file_exists($filepath)) {
-        flash('danger', '❌ Invalid or missing backup file.');
-        header('Location: backup.php');
-        exit;
+    
+    $result = $backupService->deleteBackup($filename);
+    
+    if ($result['success']) {
+        flash('success', 'Backup file deleted: ' . h($filename));
+    } else {
+        flash('danger', $result['errors'][0]);
     }
-
-    unlink($filepath);
-    $pdo->prepare('DELETE FROM backup_log WHERE filename = ?')->execute([$filename]);
-    flash('success', '🗑️ Backup file deleted: ' . h($filename));
     header('Location: backup.php');
     exit;
 }
 
-/* ── Fetch log from DB ───────────────────────────────────── */
-$logEntries = $pdo->query('SELECT * FROM backup_log ORDER BY created_at DESC LIMIT 30')->fetchAll();
-$backupFiles = listBackups();
+$logEntries = $backupService->getLog();
+$backupFiles = $backupService->listBackups();
 
 $token = csrfToken();
 renderHeader('Backup & Restore');
@@ -122,7 +64,7 @@ renderHeader('Backup & Restore');
 <!-- Confirm dialog (shared) -->
 <div class="dialog-overlay" id="confirmOverlay">
   <div class="dialog-box">
-    <h3 id="confirmTitle">⚠️ Confirm Action</h3>
+    <h3 id="confirmTitle">Confirm Action</h3>
     <p id="confirmMsg"></p>
     <div class="dialog-actions">
       <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
@@ -143,7 +85,7 @@ renderHeader('Backup & Restore');
     <input type="hidden" name="action" value="backup">
     <button type="button" class="btn btn-warning"
             onclick="openConfirm('Create a new full database backup now?','backupForm')">
-      💾 Create Backup Now
+      Create Backup Now
     </button>
   </form>
 </div>
@@ -152,42 +94,37 @@ renderHeader('Backup & Restore');
 
   <!-- ── Backup files ── -->
   <div class="card">
-    <div class="card-title">📂 Backup Files <span style="color:var(--text-dim);font-size:.8rem">(<?= count($backupFiles) ?> files)</span></div>
+    <div class="card-title">Backup Files <span style="color:var(--text-dim);font-size:.8rem">(<?= count($backupFiles) ?> files)</span></div>
 
     <?php if ($backupFiles): ?>
     <div class="backup-list">
-      <?php foreach ($backupFiles as $fpath): ?>
-        <?php
-          $fname   = basename($fpath);
-          $size    = round(filesize($fpath) / 1024, 1) . ' KB';
-          $mtime   = date('d M Y, H:i', filemtime($fpath));
-        ?>
+      <?php foreach ($backupFiles as $file): ?>
         <div class="backup-item">
           <div>
-            <div class="backup-filename">📄 <?= h($fname) ?></div>
-            <div class="backup-date"><?= $mtime ?> &bull; <?= $size ?></div>
+            <div class="backup-filename"><?= h($file['filename']) ?></div>
+            <div class="backup-date"><?= date('d M Y, H:i', strtotime($file['mtime'])) ?> &bull; <?= $file['size_kb'] ?> KB</div>
           </div>
           <div style="display:flex;gap:.4rem;flex-shrink:0">
             <!-- Restore -->
-            <form method="post" action="backup.php" id="restore_<?= md5($fname) ?>">
+            <form method="post" action="backup.php" id="restore_<?= md5($file['filename']) ?>">
               <input type="hidden" name="csrf_token" value="<?= h($token) ?>">
               <input type="hidden" name="action" value="restore">
-              <input type="hidden" name="filename" value="<?= h($fname) ?>">
+              <input type="hidden" name="filename" value="<?= h($file['filename']) ?>">
             </form>
             <button type="button" class="btn btn-sm btn-info"
-                    onclick="openConfirm('⚠️ Restore from <?= h(addslashes($fname)) ?>? This will OVERWRITE current data!','restore_<?= md5($fname) ?>')">
-              🔄 Restore
+                    onclick="openConfirm('Restore from <?= h(addslashes($file['filename'])) ?>? This will OVERWRITE current data!','restore_<?= md5($file['filename']) ?>')">
+              Restore
             </button>
 
             <!-- Delete backup file -->
-            <form method="post" action="backup.php" id="delbk_<?= md5($fname) ?>">
+            <form method="post" action="backup.php" id="delbk_<?= md5($file['filename']) ?>">
               <input type="hidden" name="csrf_token" value="<?= h($token) ?>">
               <input type="hidden" name="action" value="delete_backup">
-              <input type="hidden" name="filename" value="<?= h($fname) ?>">
+              <input type="hidden" name="filename" value="<?= h($file['filename']) ?>">
             </form>
             <button type="button" class="btn btn-sm btn-danger"
-                    onclick="openConfirm('Permanently delete backup file <?= h(addslashes($fname)) ?>?','delbk_<?= md5($fname) ?>')">
-              🗑️
+                    onclick="openConfirm('Permanently delete backup file <?= h(addslashes($file['filename'])) ?>?','delbk_<?= md5($file['filename']) ?>')">
+              Delete
             </button>
           </div>
         </div>
@@ -200,7 +137,7 @@ renderHeader('Backup & Restore');
 
   <!-- ── Backup log ── -->
   <div class="card">
-    <div class="card-title">📋 Backup History Log</div>
+    <div class="card-title">Backup History Log</div>
     <?php if ($logEntries): ?>
     <div class="table-wrapper">
       <table class="data-table">
@@ -227,7 +164,7 @@ renderHeader('Backup & Restore');
 
 <!-- Info box -->
 <div class="alert alert-info" style="margin-top:1.5rem">
-  ℹ️ Backups are stored at <code><?= h(BACKUP_DIR) ?></code> and are protected from direct HTTP access via <code>.htaccess</code>.
+  Backups are stored at <code><?= h(BACKUP_DIR) ?></code> and are protected from direct HTTP access via <code>.htaccess</code>.
   Restore will <strong>overwrite current database data</strong> — use with caution.
 </div>
 

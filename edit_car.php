@@ -4,27 +4,18 @@
  * Admins: full form (all fields).
  * Users:  restricted form (status + description only).
  */
-require 'config.php';
-require 'layout.php';
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/layout.php';
 requireLogin();
 
-$pdo   = getPDO();
 $plate = trim($_GET['plate'] ?? '');
-
 if ($plate === '') {
     flash('danger', 'Invalid plate number.');
     header('Location: cars.php'); exit;
 }
 
-$car = $pdo->prepare('
-    SELECT c.plate_number, cd.brand, cd.car_model, cd.color, cd.year, cd.mileage,
-           cd.price, cd.fuel_type, cd.status, cd.description, c.created_at, c.updated_at
-    FROM cars c
-    JOIN car_data cd ON c.plate_number = cd.plate_number
-    WHERE c.plate_number = ?
-');
-$car->execute([$plate]);
-$car = $car->fetch();
+$carService = new \App\Services\CarService();
+$car = $carService->getCar($plate);
 
 if (!$car) {
     flash('danger', 'Car not found.');
@@ -34,14 +25,10 @@ if (!$car) {
 $errors = [];
 $vals   = $car;
 
-/* ══════════════════════════════════════════════════════════
-   POST handler — two separate paths by role
-   ══════════════════════════════════════════════════════════ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
 
     if (isAdmin()) {
-        /* ── Admin: update all fields ───────────────────── */
         $vals['brand']        = postStr('brand', 80);
         $vals['car_model']    = postStr('car_model', 120);
         $vals['plate_number'] = strtoupper(postStr('plate_number', 20));
@@ -52,86 +39,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $vals['fuel_type']    = postStr('fuel_type', 20);
         $vals['status']       = postStr('status', 20);
         $vals['description']  = postStr('description', 2000);
-
-        // Validation
-        if ($vals['brand'] === '')        $errors[] = 'Brand is required.';
-        if ($vals['car_model'] === '')    $errors[] = 'Model is required.';
-        if ($vals['plate_number'] === '') $errors[] = 'Plate number is required.';
-        if (!preg_match('/^#[0-9a-fA-F]{6}$/', $vals['color'])) $errors[] = 'Invalid color value.';
-        if ($vals['year'] !== '' && ($vals['year'] < 1886 || $vals['year'] > (int)date('Y') + 1))
-            $errors[] = 'Invalid year.';
-
-        $allowedFuels    = ['petrol','diesel','electric','hybrid','lpg','other'];
-        $allowedStatuses = ['available','sold','reserved'];
-        if (!in_array($vals['fuel_type'], $allowedFuels))  $errors[] = 'Invalid fuel type.';
-        if (!in_array($vals['status'], $allowedStatuses))  $errors[] = 'Invalid status.';
-
-        if (!$errors) {
-            try {
-                $pdo->beginTransaction();
-
-                // Update car_data (vehicle attributes)
-                $pdo->prepare("
-                    UPDATE car_data SET
-                        brand=:brand, car_model=:car_model, color=:color,
-                        year=:year, mileage=:mileage, price=:price,
-                        fuel_type=:fuel_type, status=:status, description=:description
-                    WHERE plate_number=:old_plate
-                ")->execute([
-                    ':brand'        => ucwords(strtolower($vals['brand'])),
-                    ':car_model'    => ucwords(strtolower($vals['car_model'])),
-                    ':color'        => $vals['color'],
-                    ':year'         => $vals['year']    !== '' ? (int)$vals['year']    : null,
-                    ':mileage'      => $vals['mileage'] !== '' ? (int)$vals['mileage'] : null,
-                    ':price'        => $vals['price']   !== '' ? (float)$vals['price'] : null,
-                    ':fuel_type'    => $vals['fuel_type'],
-                    ':status'       => $vals['status'],
-                    ':description'  => $vals['description'] !== '' ? $vals['description'] : null,
-                    ':old_plate'    => $plate,
-                ]);
-
-                // If plate number changed, update cars table (CASCADE updates car_data FK)
-                if ($vals['plate_number'] !== $plate) {
-                    $pdo->prepare("UPDATE cars SET plate_number=:new_plate WHERE plate_number=:old_plate")
-                        ->execute([':new_plate' => $vals['plate_number'], ':old_plate' => $plate]);
-                }
-
-                $pdo->commit();
-                flash('success', '✅ Car updated successfully!');
-                header('Location: cars.php'); exit;
-            } catch (PDOException $e) {
-                $pdo->rollBack();
-                if ($e->errorInfo[1] === 1062)
-                    $errors[] = 'Plate number "' . h($vals['plate_number']) . '" already belongs to another car.';
-                else
-                    $errors[] = 'Database error: ' . $e->getMessage();
-            }
-        }
-
     } else {
-        /* ── User: update status + description only ─────── */
-        $allowedStatuses = ['available','sold','reserved'];
-        $vals['status']      = postStr('status', 20);
-        $vals['description'] = postStr('description', 2000);
+        $vals['status']       = postStr('status', 20);
+        $vals['description']  = postStr('description', 2000);
+    }
 
-        if (!in_array($vals['status'], $allowedStatuses))
-            $errors[] = 'Invalid status value.';
+    $result = $carService->updateCar($plate, $vals, isAdmin());
 
-        if (!$errors) {
-            try {
-                $pdo->prepare("
-                    UPDATE car_data SET status=:status, description=:description WHERE plate_number=:plate
-                ")->execute([
-                    ':status'      => $vals['status'],
-                    ':description' => $vals['description'] !== '' ? $vals['description'] : null,
-                    ':plate'       => $plate,
-                ]);
-                flash('success', '✅ Car status and notes updated!');
-                header('Location: cars.php'); exit;
-            } catch (PDOException $e) {
-                $errors[] = 'Database error: ' . $e->getMessage();
-            }
-        }
+    if ($result['success']) {
+        flash('success', 'Car ' . (isAdmin() ? 'updated' : 'status and notes updated') . ' successfully!');
+        header('Location: cars.php'); exit;
+    } else {
+        $errors = $result['errors'];
     }
 }
 
@@ -246,7 +165,7 @@ renderHeader('Edit Car');
 
     <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:.5rem">
       <a href="cars.php" class="btn btn-ghost">Cancel</a>
-      <button type="submit" class="btn btn-primary">💾 Save Changes</button>
+      <button type="submit" class="btn btn-primary">Save Changes</button>
     </div>
   </form>
 </div>
@@ -301,7 +220,7 @@ renderHeader('Edit Car');
 
     <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:.5rem">
       <a href="cars.php" class="btn btn-ghost">Cancel</a>
-      <button type="submit" class="btn btn-primary">💾 Save</button>
+      <button type="submit" class="btn btn-primary">Save</button>
     </div>
   </form>
 </div>

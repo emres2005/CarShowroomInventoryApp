@@ -27,7 +27,7 @@ function renderHeader(string $pageTitle = ''): void {
 <header class="site-header">
   <div class="header-inner">
     <a href="index.php" class="logo">
-      <span class="logo-icon">🚗</span>
+      <span class="logo-icon"></span>
       <span class="logo-text">AutoVault</span>
     </a>
     <nav class="main-nav">

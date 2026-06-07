@@ -2,30 +2,18 @@
 /**
  * cars.php — Full inventory listing with search, filter, sort
  */
-require 'config.php';
-require 'layout.php';
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/layout.php';
 requireLogin();
 
-$pdo = getPDO();
+$carService = new \App\Services\CarService();
 
-// ── Build WHERE clause from GET params ────────────────────
-$where  = [];
-$params = [];
-
-if (!empty($_GET['q'])) {
-    $where[]       = '(cd.brand LIKE :q OR cd.car_model LIKE :q OR c.plate_number LIKE :q)';
-    $params[':q']  = '%' . $_GET['q'] . '%';
-}
-if (!empty($_GET['status'])) {
-    $where[]          = 'cd.status = :status';
-    $params[':status'] = $_GET['status'];
-}
-if (!empty($_GET['fuel'])) {
-    $where[]        = 'cd.fuel_type = :fuel';
-    $params[':fuel'] = $_GET['fuel'];
-}
-
-$whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+// ── Build filters from GET params ─────────────────────────
+$filters = [
+    'q'      => trim($_GET['q'] ?? ''),
+    'status' => trim($_GET['status'] ?? ''),
+    'fuel'   => trim($_GET['fuel'] ?? '')
+];
 
 // ── Sort ──────────────────────────────────────────────────
 $sortMap = [
@@ -42,16 +30,7 @@ $sortCol  = $sortMap[$sortKey];
 $order    = ($_GET['order'] ?? 'desc') === 'asc' ? 'ASC' : 'DESC';
 $flipOrder = ($order === 'ASC') ? 'desc' : 'asc';
 
-$stmt = $pdo->prepare("
-    SELECT c.plate_number, cd.brand, cd.car_model, cd.color, cd.year, cd.mileage,
-           cd.price, cd.fuel_type, cd.status, c.created_at
-    FROM cars c
-    JOIN car_data cd ON c.plate_number = cd.plate_number
-    {$whereSql}
-    ORDER BY {$sortCol} {$order}
-");
-$stmt->execute($params);
-$cars = $stmt->fetchAll();
+$cars = $carService->listCars($filters, $sortCol, $order);
 
 $sortLink = fn($col, $label) =>
     "<a href=\"cars.php?" . http_build_query(array_merge($_GET, ['sort'=>$col,'order'=>($sortKey===$col?$flipOrder:'asc')])) . "\"
@@ -64,7 +43,7 @@ renderHeader('Inventory');
 <!-- Confirm delete dialog -->
 <div class="dialog-overlay" id="confirmOverlay">
   <div class="dialog-box">
-    <h3>⚠️ Confirm Delete</h3>
+    <h3>Confirm Delete</h3>
     <p id="confirmMsg"></p>
     <div class="dialog-actions">
       <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
@@ -79,15 +58,14 @@ renderHeader('Inventory');
     <p class="page-subtitle"><?= count($cars) ?> car<?= count($cars)!=1?'s':'' ?> found</p>
   </div>
   <?php if (isAdmin()): ?>
-    <a href="add_car.php" class="btn btn-primary">＋ Add Car</a>
+    <a href="add_car.php" class="btn btn-primary">+ Add Car</a>
   <?php endif; ?>
 </div>
 
 <!-- Filters -->
 <form method="get" action="cars.php" class="search-bar" id="filterForm">
   <input type="text" id="carSearch" name="q" class="form-control"
-         placeholder="🔍 Search brand, model, plate…"
-         value="<?= h($_GET['q'] ?? '') ?>">
+         placeholder="Search brand, model, plate…">
 
   <select name="status" class="form-control" style="max-width:160px" onchange="this.form.submit()">
     <option value="">All Statuses</option>
@@ -145,7 +123,7 @@ renderHeader('Inventory');
         <td>
           <div class="actions">
             <?php if (isAdmin()): ?>
-              <a href="edit_car.php?plate=<?= urlencode($c['plate_number']) ?>" class="btn btn-sm btn-ghost" title="Edit car">✏️ Edit</a>
+              <a href="edit_car.php?plate=<?= urlencode($c['plate_number']) ?>" class="btn btn-sm btn-ghost" title="Edit car">Edit</a>
               <!-- Hidden delete form -->
               <form method="post" action="delete_car.php" id="del<?= h($c['plate_number']) ?>">
                 <input type="hidden" name="csrf_token" value="<?= h(csrfToken()) ?>">
@@ -153,11 +131,11 @@ renderHeader('Inventory');
               </form>
               <button type="button" class="btn btn-sm btn-danger" title="Delete"
                 onclick="openConfirm('Delete <?= h(addslashes($c['brand'] . ' ' . $c['car_model'])) ?> (<?= h(addslashes($c['plate_number'])) ?>)?','del<?= h($c['plate_number']) ?>')">
-                🗑️
+                Delete
               </button>
             <?php else: ?>
               <a href="edit_car.php?plate=<?= urlencode($c['plate_number']) ?>" class="btn btn-sm btn-ghost" title="Update status / notes">
-                🏷️ Status
+                Status
               </a>
             <?php endif; ?>
           </div>

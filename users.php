@@ -2,12 +2,12 @@
 /**
  * users.php — User management (Admin only)
  */
-require 'config.php';
-require 'layout.php';
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/layout.php';
 requireAdmin();
 
-$pdo   = getPDO();
-$users = $pdo->query('SELECT id, username, role, created_at FROM users ORDER BY id ASC')->fetchAll();
+$userService = new \App\Services\UserService();
+$users = $userService->listUsers();
 
 $token = csrfToken();
 renderHeader('User Management');
@@ -16,7 +16,7 @@ renderHeader('User Management');
 <!-- Confirm delete dialog -->
 <div class="dialog-overlay" id="confirmOverlay">
   <div class="dialog-box">
-    <h3>⚠️ Confirm Delete</h3>
+    <h3>Confirm Delete</h3>
     <p id="confirmMsg"></p>
     <div class="dialog-actions">
       <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
@@ -30,12 +30,12 @@ renderHeader('User Management');
     <h1 class="page-title">User Management</h1>
     <p class="page-subtitle"><?= count($users) ?> registered user<?= count($users)!=1?'s':'' ?></p>
   </div>
-  <a href="add_user.php" class="btn btn-primary">＋ Add User</a>
+  <a href="add_user.php" class="btn btn-primary">+ Add User</a>
 </div>
 
 <div class="search-bar">
   <input type="text" id="userSearch" class="form-control"
-         placeholder="🔍 Search by username or role…">
+         placeholder="Search by username or role…">
 </div>
 
 <div class="table-wrapper">
@@ -59,7 +59,7 @@ renderHeader('User Management');
         <td style="color:var(--text-muted);font-size:.85rem"><?= date('d M Y', strtotime($u['created_at'])) ?></td>
         <td>
           <div class="actions">
-            <a href="edit_user.php?id=<?= (int)$u['id'] ?>" class="btn btn-sm btn-ghost" title="Edit">✏️ Edit</a>
+            <a href="edit_user.php?id=<?= (int)$u['id'] ?>" class="btn btn-sm btn-ghost" title="Edit">Edit</a>
 
             <?php if ((int)$u['id'] !== (int)$_SESSION['user_id']): ?>
               <form method="post" action="delete_user.php" id="delu<?= (int)$u['id'] ?>">
@@ -68,10 +68,10 @@ renderHeader('User Management');
               </form>
               <button type="button" class="btn btn-sm btn-danger"
                       onclick="openConfirm('Delete user \"<?= h(addslashes($u['username'])) ?>\"? This cannot be undone.','delu<?= (int)$u['id'] ?>')">
-                🗑️ Delete
+                Delete
               </button>
             <?php else: ?>
-              <span class="btn btn-sm btn-ghost" style="opacity:.4;cursor:default" title="Cannot delete yourself">🔒 You</span>
+              <span class="btn btn-sm btn-ghost" style="opacity:.4;cursor:default" title="Cannot delete yourself">You</span>
             <?php endif; ?>
           </div>
         </td>

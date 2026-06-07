@@ -2,8 +2,8 @@
 /**
  * add_car.php — Add a new car to inventory
  */
-require 'config.php';
-require 'layout.php';
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/layout.php';
 requireAdmin();
 
 $errors = [];
@@ -25,59 +25,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $vals['status']       = postStr('status', 20);
     $vals['description']  = postStr('description', 2000);
 
-    // Validation
-    if ($vals['brand'] === '')        $errors[] = 'Brand is required.';
-    if ($vals['car_model'] === '')    $errors[] = 'Model is required.';
-    if ($vals['plate_number'] === '') $errors[] = 'Plate number is required.';
-    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $vals['color'])) $errors[] = 'Invalid color value.';
-    if ($vals['year'] !== '' && ($vals['year'] < 1886 || $vals['year'] > (int)date('Y')+1))
-        $errors[] = 'Invalid year.';
+    $carService = new \App\Services\CarService();
+    $result = $carService->createCar($vals);
 
-    $allowedFuels    = ['petrol','diesel','electric','hybrid','lpg','other'];
-    $allowedStatuses = ['available','sold','reserved'];
-    if (!in_array($vals['fuel_type'], $allowedFuels))    $errors[] = 'Invalid fuel type.';
-    if (!in_array($vals['status'], $allowedStatuses))    $errors[] = 'Invalid status.';
-
-    if (!$errors) {
-        try {
-            $pdo = getPDO();
-            $pdo->beginTransaction();
-
-            // Insert into cars (plate_number + timestamps)
-            $pdo->prepare('INSERT INTO cars (plate_number) VALUES (:plate_number)')
-                ->execute([':plate_number' => $vals['plate_number']]);
-
-            // Insert into car_data (all vehicle attributes)
-            $pdo->prepare("
-                INSERT INTO car_data
-                    (plate_number, brand, car_model, color, year, mileage, price, fuel_type, status, description)
-                VALUES
-                    (:plate_number,:brand,:car_model,:color,:year,:mileage,:price,:fuel_type,:status,:description)
-            ")->execute([
-                ':plate_number' => $vals['plate_number'],
-                ':brand'        => ucwords(strtolower($vals['brand'])),
-                ':car_model'    => ucwords(strtolower($vals['car_model'])),
-                ':color'        => $vals['color'],
-                ':year'         => $vals['year']    !== '' ? (int)$vals['year']    : null,
-                ':mileage'      => $vals['mileage'] !== '' ? (int)$vals['mileage'] : null,
-                ':price'        => $vals['price']   !== '' ? (float)$vals['price'] : null,
-                ':fuel_type'    => $vals['fuel_type'],
-                ':status'       => $vals['status'],
-                ':description'  => $vals['description'] !== '' ? $vals['description'] : null,
-            ]);
-
-            $pdo->commit();
-            flash('success', '✅ Car "' . ucwords(strtolower($vals['brand'])) . ' ' . ucwords(strtolower($vals['car_model'])) . '" added successfully!');
-            header('Location: cars.php');
-            exit;
-        } catch (PDOException $e) {
-            $pdo->rollBack();
-            if ($e->errorInfo[1] === 1062) {
-                $errors[] = 'Plate number "' . h($vals['plate_number']) . '" already exists.';
-            } else {
-                $errors[] = 'Database error: ' . $e->getMessage();
-            }
-        }
+    if ($result['success']) {
+        flash('success', 'Car "' . ucwords(strtolower($vals['brand'])) . ' ' . ucwords(strtolower($vals['car_model'])) . '" added successfully!');
+        header('Location: cars.php');
+        exit;
+    } else {
+        $errors = $result['errors'];
     }
 }
 
@@ -182,7 +138,7 @@ renderHeader('Add Car');
 
     <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:.5rem">
       <a href="cars.php" class="btn btn-ghost">Cancel</a>
-      <button type="submit" class="btn btn-primary">＋ Add Car</button>
+      <button type="submit" class="btn btn-primary">+ Add Car</button>
     </div>
   </form>
 </div>
