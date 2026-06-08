@@ -67,7 +67,7 @@ renderHeader('User Management');
                 <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
               </form>
               <button type="button" class="btn btn-sm btn-danger"
-                      onclick="openConfirm('Delete user \"<?= h(addslashes($u['username'])) ?>\"? This cannot be undone.','delu<?= (int)$u['id'] ?>')">
+                      onclick="openConfirm('Delete user &quot;<?= h(addslashes($u['username'])) ?>&quot;? This cannot be undone.','delu<?= (int)$u['id'] ?>')">
                 Delete
               </button>
             <?php else: ?>

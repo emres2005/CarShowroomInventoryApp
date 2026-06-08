@@ -29,6 +29,13 @@ class UserService {
             return ['success' => true, 'errors' => []];
         } catch (\PDOException $e) {
             if ($e->errorInfo[1] === 1062) {
+                // Check if it's a case-insensitive false positive from the DB collation
+                if ($this->repo->getByUsername($input['username']) === null) {
+                    $this->repo->migrateUsernameCollation();
+                    // Retry now that the DB column is case-sensitive
+                    $this->repo->create($input['username'], $hash, $input['role']);
+                    return ['success' => true, 'errors' => []];
+                }
                 return ['success' => false, 'errors' => ['Username already taken.']];
             }
             return ['success' => false, 'errors' => ['Database error: ' . $e->getMessage()]];
@@ -60,6 +67,14 @@ class UserService {
             return ['success' => true, 'errors' => []];
         } catch (\PDOException $e) {
             if ($e->errorInfo[1] === 1062) {
+                // Check if it's a case-insensitive false positive from the DB collation
+                $existing = $this->repo->getByUsername($input['username']);
+                if ($existing === null || (int)$existing['id'] === (int)$id) {
+                    $this->repo->migrateUsernameCollation();
+                    // Retry now that the DB column is case-sensitive
+                    $this->repo->update($id, $input['username'], $newRole, $hash);
+                    return ['success' => true, 'errors' => []];
+                }
                 return ['success' => false, 'errors' => ['Username already taken by another user.']];
             }
             return ['success' => false, 'errors' => ['Database error: ' . $e->getMessage()]];

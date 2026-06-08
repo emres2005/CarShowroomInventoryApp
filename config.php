@@ -14,7 +14,7 @@ define('DB_CHARSET', 'utf8mb4');
 
 // ── Application settings ──────────────────────────────────────────────────────
 define('APP_NAME',    'AutoVault Showroom');
-define('APP_VERSION', '1.0.0');
+define('APP_VERSION', '1.2.0');
 
 // ── Session ───────────────────────────────────────────────────────────────────
 if (session_status() === PHP_SESSION_NONE) {

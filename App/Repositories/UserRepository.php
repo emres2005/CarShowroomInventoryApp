@@ -19,7 +19,7 @@ class UserRepository {
     }
 
     public function getByUsername(string $username): ?array {
-        $stmt = $this->pdo->prepare('SELECT * FROM users WHERE username = ?');
+        $stmt = $this->pdo->prepare('SELECT * FROM users WHERE BINARY username = ?');
         $stmt->execute([$username]);
         $user = $stmt->fetch();
         return $user ?: null;
@@ -51,5 +51,9 @@ class UserRepository {
             $stmt->execute([$id]);
         }
         return $user;
+    }
+
+    public function migrateUsernameCollation(): void {
+        $this->pdo->exec('ALTER TABLE users MODIFY username VARCHAR(64) COLLATE utf8mb4_bin NOT NULL');
     }
 }
