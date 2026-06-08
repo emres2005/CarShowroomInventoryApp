@@ -115,13 +115,6 @@ $statusBadge = fn($s) => "<span class=\"badge badge-{$s}\">{$s}</span>";
       <p style="color:var(--text-muted)">No data.</p>
     <?php endif; ?>
 
-    <?php if (isAdmin()): ?>
-    <div style="margin-top:1.2rem;padding-top:1rem;border-top:1px solid var(--border)">
-      <a href="backup.php" class="btn btn-warning" style="width:100%;justify-content:center;">
-        Manage Backups
-      </a>
-    </div>
-    <?php endif; ?>
   </div>
 
 </div>

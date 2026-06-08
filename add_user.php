@@ -68,7 +68,7 @@ renderHeader('Add User');
       <label class="form-label" for="role">Role</label>
       <select id="role" name="role" class="form-control">
         <option value="user"  <?= $vals['role']==='user' ?'selected':'' ?>>User — can view &amp; edit cars</option>
-        <option value="admin" <?= $vals['role']==='admin'?'selected':'' ?>>Admin — full access (backup, users)</option>
+        <option value="admin" <?= $vals['role']==='admin'?'selected':'' ?>>Admin — full access (cars, users)</option>
       </select>
     </div>
 

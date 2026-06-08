@@ -17,36 +17,6 @@
 /*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
 
 --
--- Table structure for table `backup_log`
---
-
-DROP TABLE IF EXISTS `backup_log`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
-CREATE TABLE `backup_log` (
-  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-  `filename` varchar(255) NOT NULL,
-  `created_by` varchar(64) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `backup_log`
---
-
-SET @OLD_AUTOCOMMIT=@@AUTOCOMMIT, @@AUTOCOMMIT=0;
-LOCK TABLES `backup_log` WRITE;
-/*!40000 ALTER TABLE `backup_log` DISABLE KEYS */;
-INSERT INTO `backup_log` VALUES
-(1,'backup_2026-05-12_11-54-21_admin.sql','admin','2026-05-12 11:54:21');
-/*!40000 ALTER TABLE `backup_log` ENABLE KEYS */;
-UNLOCK TABLES;
-COMMIT;
-SET AUTOCOMMIT=@OLD_AUTOCOMMIT;
-
---
 -- Table structure for table `cars`
 -- Stores only the plate number (PK) and timestamps
 --
@@ -131,7 +101,7 @@ DROP TABLE IF EXISTS `users`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `users` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-  `username` varchar(64) NOT NULL,
+  `username` varchar(64) COLLATE utf8mb4_bin NOT NULL,
   `password_hash` varchar(255) NOT NULL,
   `role` enum('admin','user') NOT NULL DEFAULT 'user',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),

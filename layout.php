@@ -80,7 +80,6 @@ function buildNav(): string {
         $links[] = ['cars.php', 'Inventory', true];
         if (isAdmin()) {
             $links[] = ['add_car.php',  'Add Car', true];
-            $links[] = ['backup.php',   'Backup',  true];
             $links[] = ['users.php',    'Users',   true];
         }
     }

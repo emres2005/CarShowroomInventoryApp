@@ -15,7 +15,6 @@ define('DB_CHARSET', 'utf8mb4');
 // ── Application settings ──────────────────────────────────────────────────────
 define('APP_NAME',    'AutoVault Showroom');
 define('APP_VERSION', '1.0.0');
-define('BACKUP_DIR',  __DIR__ . '/backups/');   // must be writable
 
 // ── Session ───────────────────────────────────────────────────────────────────
 if (session_status() === PHP_SESSION_NONE) {
