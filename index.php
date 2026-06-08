@@ -2,37 +2,17 @@
 /**
  * index.php — Dashboard
  */
-require 'config.php';
-require 'layout.php';
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/layout.php';
 
 requireLogin();
 
-$pdo = getPDO();
+$carService = new \App\Services\CarService();
+$data = $carService->getDashboardData();
 
-// ── Stats ─────────────────────────────────────────────────
-$stats = $pdo->query("
-    SELECT
-        COUNT(*) AS total,
-        SUM(status='available')  AS available,
-        SUM(status='sold')       AS sold,
-        SUM(status='reserved')   AS reserved,
-        SUM(price)               AS total_value,
-        AVG(price)               AS avg_price
-    FROM cars
-")->fetch();
-
-// ── Recent 5 cars ─────────────────────────────────────────
-$recent = $pdo->query("
-    SELECT id, brand, car_model, plate_number, color, status, price, created_at
-    FROM cars
-    ORDER BY created_at DESC
-    LIMIT 5
-")->fetchAll();
-
-// ── By fuel type ──────────────────────────────────────────
-$byFuel = $pdo->query("
-    SELECT fuel_type, COUNT(*) AS cnt FROM cars GROUP BY fuel_type ORDER BY cnt DESC
-")->fetchAll();
+$stats = $data['stats'];
+$recent = $data['recent'];
+$byFuel = $data['byFuel'];
 
 renderHeader('Dashboard');
 
@@ -46,34 +26,34 @@ $statusBadge = fn($s) => "<span class=\"badge badge-{$s}\">{$s}</span>";
     <p class="page-subtitle">Welcome back, <strong><?= h($_SESSION['username']) ?></strong> — here's your showroom at a glance.</p>
   </div>
   <?php if (isAdmin()): ?>
-    <a href="add_car.php" class="btn btn-primary">＋ Add Car</a>
+    <a href="add_car.php" class="btn btn-primary">+ Add Car</a>
   <?php endif; ?>
 </div>
 
 <!-- Stats grid -->
 <div class="stats-grid">
   <div class="stat-card">
-    <span class="stat-icon">🚗</span>
+    <span class="stat-icon"></span>
     <span class="stat-label">Total Cars</span>
     <span class="stat-value"><?= (int)$stats['total'] ?></span>
   </div>
   <div class="stat-card">
-    <span class="stat-icon">✅</span>
+    <span class="stat-icon"></span>
     <span class="stat-label">Available</span>
     <span class="stat-value" style="color:var(--success)"><?= (int)$stats['available'] ?></span>
   </div>
   <div class="stat-card">
-    <span class="stat-icon">🏷️</span>
+    <span class="stat-icon"></span>
     <span class="stat-label">Reserved</span>
     <span class="stat-value" style="color:var(--warning)"><?= (int)$stats['reserved'] ?></span>
   </div>
   <div class="stat-card">
-    <span class="stat-icon">🤝</span>
+    <span class="stat-icon"></span>
     <span class="stat-label">Sold</span>
     <span class="stat-value" style="color:var(--danger)"><?= (int)$stats['sold'] ?></span>
   </div>
   <div class="stat-card">
-    <span class="stat-icon">💰</span>
+    <span class="stat-icon"></span>
     <span class="stat-label">Total Value</span>
     <span class="stat-value" style="font-size:1.3rem"><?= $fmtPrice($stats['total_value']) ?></span>
     <span class="stat-sub">avg <?= $fmtPrice($stats['avg_price']) ?></span>
@@ -135,13 +115,6 @@ $statusBadge = fn($s) => "<span class=\"badge badge-{$s}\">{$s}</span>";
       <p style="color:var(--text-muted)">No data.</p>
     <?php endif; ?>
 
-    <?php if (isAdmin()): ?>
-    <div style="margin-top:1.2rem;padding-top:1rem;border-top:1px solid var(--border)">
-      <a href="backup.php" class="btn btn-warning" style="width:100%;justify-content:center;">
-        💾 Manage Backups
-      </a>
-    </div>
-    <?php endif; ?>
   </div>
 
 </div>

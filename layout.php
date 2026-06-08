@@ -27,7 +27,7 @@ function renderHeader(string $pageTitle = ''): void {
 <header class="site-header">
   <div class="header-inner">
     <a href="index.php" class="logo">
-      <span class="logo-icon">🚗</span>
+      <span class="logo-icon"></span>
       <span class="logo-text">AutoVault</span>
     </a>
     <nav class="main-nav">
@@ -80,7 +80,6 @@ function buildNav(): string {
         $links[] = ['cars.php', 'Inventory', true];
         if (isAdmin()) {
             $links[] = ['add_car.php',  'Add Car', true];
-            $links[] = ['backup.php',   'Backup',  true];
             $links[] = ['users.php',    'Users',   true];
         }
     }

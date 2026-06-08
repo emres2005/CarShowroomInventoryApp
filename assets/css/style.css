@@ -397,22 +397,6 @@ table.data-table td.actions { white-space: nowrap; display: flex; gap:.4rem; }
 .dialog-box p  { color:var(--text-muted); font-size:.9rem; margin-bottom:1.5rem; }
 .dialog-actions { display:flex; gap:.75rem; justify-content:flex-end; }
 
-/* ── Backup list ─────────────────────────────────────────── */
-.backup-list { display:flex; flex-direction:column; gap:.75rem; }
-.backup-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: .9rem 1.2rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  transition: border-color var(--transition);
-}
-.backup-item:hover { border-color: var(--border-hover); }
-.backup-filename { flex: 1; font-size: .9rem; font-family: monospace; color: var(--text-muted); }
-.backup-date     { font-size: .8rem; color: var(--text-dim); white-space: nowrap; }
-
 /* ── Responsive ──────────────────────────────────────────── */
 @media(max-width:768px) {
   .header-inner { flex-wrap:wrap; }

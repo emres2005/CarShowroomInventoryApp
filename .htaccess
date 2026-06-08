@@ -1,0 +1,33 @@
+# ── AutoVault Security Rules ──────────────────────────────────────────────────
+
+# Disable directory listing
+Options -Indexes
+
+# Deny direct browser access to config/helper files
+<FilesMatch "^(config|layout|app_header)\.php$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Protect markdown docs from direct access
+<FilesMatch "\.(md)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Security headers
+<IfModule mod_headers.c>
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-Content-Type-Options "nosniff"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# UTF-8 default charset
+AddDefaultCharset UTF-8
+
+
+
+# Protect App directory
+<IfModule mod_rewrite.c>
+    RewriteRule ^App/ - [F,L]
+</IfModule>
